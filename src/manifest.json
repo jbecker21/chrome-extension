@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "FocusUp",
+  "description": "Blocks distracting websites for a set period to help you stay focused.",
+  "version": "1.0",
+  "action": {
+    "default_popup": "ui/popup/popup.html"
+  },
+  "permissions": ["scripting", "activeTab", "tabs"]
+}

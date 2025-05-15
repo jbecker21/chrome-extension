@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>FocusUp</title>
+    <link href="popup.css" rel="stylesheet" type="text/css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Welcome-Page -->
+      <div id="screen-welcome">
+        <div class="title">Welcome to FocusUp!</div>
+        <button class="button" id="begin-button"><span>Begin</span></button>
+      </div>
+      <!-- Settings-Page -->
+      <div id="screen-settings" style="display: none">
+        <div class="title">FocusUp</div>
+        <p>Time to concentrate - No Time for Distractions!</p>
+        <form id="focus-form">
+          <label for="study-hours">Study time:</label>
+          <div class="time-row">
+            <input
+              type="number"
+              id="study-hours"
+              placeholder="hh"
+              min="1"
+              max="10"
+              required
+            />
+            <input
+              type="number"
+              id="study-minutes"
+              placeholder="mm"
+              min="0"
+              max="59"
+            />
+          </div>
+          <label for="pause-hours">Pause time:</label>
+          <div class="time-row">
+            <input
+              type="number"
+              id="pause-hours"
+              placeholder="hh"
+              min="1"
+              max="10"
+              required
+            />
+            <input
+              type="number"
+              id="pause-minutes"
+              placeholder="mm"
+              min="0"
+              max="59"
+            />
+          </div>
+          <label for="cycles">Circle (times to repeat):</label>
+          <input
+            type="number"
+            id="cycles"
+            min="1"
+            max="10"
+            placeholder="1–10"
+            required
+          />
+          <label for="block-url">Blocking websites:</label>
+          <input
+            type="text"
+            id="block-url"
+            placeholder="Type a URL and press Enter"
+          />
+          <ul id="blocked-sites-list"></ul>
+          <button type="submit" class="button" id="start-button">
+            <span>Start Focus</span>
+          </button>
+        </form>
+      </div>
+      <!-- Focus-Page -->
+      <div id="screen-focus" style="display: none">
+        <div class="title">Study time</div>
+      </div>
+    </div>
+  </body>
+</html>
