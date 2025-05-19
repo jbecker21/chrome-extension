@@ -1,9 +1,3 @@
-.container {
-  width: 200px;
-  height: 100px;
-  color: #314d3e;
-}
-
 .title {
   font-size: 18px;
   font-weight: bold;
@@ -64,6 +58,10 @@
   right: 0;
 }
 
-#screen-focus {
-  width: 100px;
+#screen-welcome {
+  width: 130px;
+  height: 100px;
+}
+#screen-settings {
+  width: 300px;
 }

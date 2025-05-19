@@ -70,6 +70,11 @@
             placeholder="Type a URL and press Enter"
           />
           <ul id="blocked-sites-list"></ul>
+          <p
+            id="form-error"
+            class="error-message"
+            style="color: red; display: none"
+          ></p>
           <button type="submit" class="button" id="start-button">
             <span>Start Focus</span>
           </button>
@@ -78,6 +83,7 @@
       <!-- Focus-Page -->
       <div id="screen-focus" style="display: none">
         <div class="title">Study time</div>
+        <div id="countdown-timer">00:00:00</div>
       </div>
     </div>
   </body>
