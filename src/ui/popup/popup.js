@@ -15,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
     startButton: document.getElementById("start-button"),
     focusSettingsButton: document.getElementById("settings-button-focus"),
     pauseSettingsButton: document.getElementById("settings-button-pause"),
-
     skipFocusButton: document.getElementById("skip-focus-button"),
     skipPauseButton: document.getElementById("skip-pause-button"),
     countdownTimerFocus: document.getElementById("countdown-timer-focus"),
@@ -26,7 +25,9 @@ document.addEventListener("DOMContentLoaded", () => {
     pauseHours: document.getElementById("pause-hours"),
     pauseMinutes: document.getElementById("pause-minutes"),
     cycles: document.getElementById("cycles"),
+    blockedSitesList: document.getElementById("blocked-sites-list"),
   };
+
   // Global Variables
   let countdownInterval = null;
   let currentCycle = 0;
@@ -301,6 +302,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "durationFocus",
       "durationPause",
       "startTime",
+      "blockedSites",
     ],
     (data) => {
       const screen = data.screen || SCREENS.WELCOME;
