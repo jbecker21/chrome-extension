@@ -13,6 +13,11 @@ document.addEventListener("DOMContentLoaded", () => {
     pauseScreen: document.getElementById("screen-pause"),
     welcomeButton: document.getElementById("begin-button"),
     startButton: document.getElementById("start-button"),
+    focusSettingsButton: document.getElementById("settings-button-focus"),
+    pauseSettingsButton: document.getElementById("settings-button-pause"),
+
+    skipFocusButton: document.getElementById("skip-focus-button"),
+    skipPauseButton: document.getElementById("skip-pause-button"),
     countdownTimerFocus: document.getElementById("countdown-timer-focus"),
     countdownTimerPause: document.getElementById("countdown-timer-pause"),
     formError: document.getElementById("form-error"),
@@ -22,14 +27,22 @@ document.addEventListener("DOMContentLoaded", () => {
     pauseMinutes: document.getElementById("pause-minutes"),
     cycles: document.getElementById("cycles"),
   };
-
+  // Global Variables
   let countdownInterval = null;
+  let currentCycle = 0;
+  let totalCycles = 0;
+  let durationFocusGlobal = 0;
+  let durationPauseGlobal = 0;
 
+  // Event Handlers
+
+  // Welcome -> Settings
   elements.welcomeButton.addEventListener("click", () => {
     showScreen(SCREENS.SETTINGS);
     chrome.storage.local.set({ screen: SCREENS.SETTINGS });
   });
 
+  // Settings -> Starting Focus (if input is complete and correct)
   elements.startButton.addEventListener("click", (e) => {
     e.preventDefault();
 
@@ -37,6 +50,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!inputs) return;
 
     const startTime = Date.now();
+
+    currentCycle = 1;
+    totalCycles = inputs.cycles;
+    durationFocusGlobal = inputs.totalSecondsFocus;
+    durationPauseGlobal = inputs.totalSecondsPause;
 
     chrome.storage.local.set({
       screen: SCREENS.FOCUS,
@@ -52,10 +70,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
     showScreen(SCREENS.FOCUS);
     startCountdownFocus(inputs.totalSecondsFocus);
-    startCountdownPause(inputs.totalSecondsPause);
   });
 
-  // Hilfsfunktion: Zeigt nur den angegebenen Screen, blendet andere aus
+  // Go Back to Settings Button
+  elements.focusSettingsButton.addEventListener("click", () => {
+    stopCountdown();
+    chrome.storage.local.set({ screen: SCREENS.SETTINGS });
+    showScreen(SCREENS.SETTINGS);
+  });
+
+  // Go Back to Settings Button
+  elements.pauseSettingsButton.addEventListener("click", () => {
+    stopCountdown();
+    chrome.storage.local.set({ screen: SCREENS.SETTINGS });
+    showScreen(SCREENS.SETTINGS);
+  });
+  // Skip Focus -> to Pause
+  elements.skipFocusButton.addEventListener("click", () => {
+    stopCountdown();
+    chrome.storage.local.set({ screen: SCREENS.PAUSE, startTime: Date.now() });
+    showScreen(SCREENS.PAUSE);
+    startCountdownPause(durationPauseGlobal);
+  });
+
+  // Skip Pause -> to Focus
+  elements.skipPauseButton.addEventListener("click", () => {
+    stopCountdown();
+    if (currentCycle < totalCycles) {
+      currentCycle++;
+      chrome.storage.local.set({
+        screen: SCREENS.FOCUS,
+        startTime: Date.now(),
+      });
+      showScreen(SCREENS.FOCUS);
+      startCountdownFocus(durationFocusGlobal);
+    } else {
+      chrome.storage.local.set({ screen: SCREENS.WELCOME });
+      showScreen(SCREENS.WELCOME);
+    }
+  });
+
+  // Helper Functions
+
+  // Display Screen / Hide other screens
   function showScreen(screenName) {
     elements.welcomeScreen.style.display =
       screenName === SCREENS.WELCOME ? "block" : "none";
@@ -67,7 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
       screenName === SCREENS.PAUSE ? "block" : "none";
   }
 
-  // Hilfsfunktion: Eingabewerte aus dem Storage in die Form laden
+  // Restore Input Values
   function restoreInputValues(data) {
     if (data.studyHours !== undefined)
       elements.studyHours.value = data.studyHours;
@@ -80,7 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (data.cycles !== undefined) elements.cycles.value = data.cycles;
   }
 
-  // Timer Anzeige aktualisieren
+  // Formats seconds as HH:MM:SS and updates the visible timer display accordingly
   function updateTimerDisplay(seconds) {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -98,9 +155,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Countdown starten, gibt clearInterval zurück um ihn stoppen zu können
-  function startCountdownFocus(durationFocus, durationPause) {
-    let remaining = durationFocus;
+  // Starts the focus timer countdown, switches pause screen when done
+  function startCountdownFocus(duration) {
+    let remaining = duration;
     updateTimerDisplay(remaining);
 
     if (countdownInterval) clearInterval(countdownInterval);
@@ -111,10 +168,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (remaining < 0) {
         clearInterval(countdownInterval);
         countdownInterval = null;
-        elements.countdownTimerFocus.textContent = "Zeit abgelaufen!";
-        chrome.storage.local.set({ screen: SCREENS.PAUSE });
+
+        chrome.storage.local.set({
+          screen: SCREENS.PAUSE,
+          startTime: Date.now(),
+        });
         showScreen(SCREENS.PAUSE);
-        startCountdownPause(durationPause); // Hier korrekt übergeben
+        startCountdownPause(durationPauseGlobal);
         return;
       }
 
@@ -122,11 +182,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1000);
   }
 
+  // Starts the pause timer countdown, switches to focus screen or welcome when done
   function startCountdownPause(duration) {
     let remaining = duration;
     updateTimerDisplay(remaining);
 
-    // Falls bereits ein Timer läuft, stoppen
     if (countdownInterval) clearInterval(countdownInterval);
 
     countdownInterval = setInterval(() => {
@@ -135,10 +195,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (remaining < 0) {
         clearInterval(countdownInterval);
         countdownInterval = null;
-        elements.countdownTimerFocus.textContent = "Zeit abgelaufen!";
-        // Nach Ablauf zurück zum Willkommensscreen wechseln
-        chrome.storage.local.set({ screen: SCREENS.SETTINGS });
-        showScreen(SCREENS.SETTINGS);
+
+        if (currentCycle < totalCycles) {
+          currentCycle++;
+          chrome.storage.local.set({
+            screen: SCREENS.FOCUS,
+            startTime: Date.now(),
+          });
+          showScreen(SCREENS.FOCUS);
+          startCountdownFocus(durationFocusGlobal);
+        } else {
+          chrome.storage.local.set({ screen: SCREENS.WELCOME });
+          showScreen(SCREENS.WELCOME);
+        }
+
         return;
       }
 
@@ -146,7 +216,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1000);
   }
 
-  // Fehleranzeige setzen oder verbergen
+  // Stops the current countdown timer if running
+  function stopCountdown() {
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  }
+  // Shows or hides an error message in the form
   function setError(message) {
     if (!message) {
       elements.formError.style.display = "none";
@@ -157,7 +234,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Eingaben validieren und als Objekt zurückgeben oder Fehler auslösen
+  // Validates user input fields and returns parsed values or null if invalid
   function validateInputs() {
     const studyHours = parseInt(elements.studyHours.value.trim(), 10);
     const studyMinutes = parseInt(elements.studyMinutes.value.trim(), 10);
@@ -165,7 +242,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const pauseMinutes = parseInt(elements.pauseMinutes.value.trim(), 10);
     const cycles = parseInt(elements.cycles.value.trim(), 10);
 
-    // Mindestens eine Eingabe muss gesetzt sein
     if (
       isNaN(studyHours) &&
       isNaN(studyMinutes) &&
@@ -202,15 +278,15 @@ document.addEventListener("DOMContentLoaded", () => {
       return null;
     }
 
-    setError(null); // Keine Fehler
+    setError(null);
     return {
       studyHours,
       studyMinutes,
       pauseHours,
       pauseMinutes,
       cycles,
-      totalSecondsFocus: totalSecondsFocus,
-      totalSecondsPause: totalSecondsPause,
+      totalSecondsFocus,
+      totalSecondsPause,
     };
   }
 
@@ -239,18 +315,28 @@ document.addEventListener("DOMContentLoaded", () => {
         const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
         const remaining = data.durationFocus - elapsed;
 
+        durationFocusGlobal = data.durationFocus;
+        durationPauseGlobal = data.durationPause;
+        totalCycles = data.cycles || 1;
+        currentCycle = 1;
+
         if (remaining > 0) {
-          startCountdownFocus(remaining, data.durationPause);
+          startCountdownFocus(remaining);
         } else {
           elements.countdownTimerFocus.textContent = "Zeit abgelaufen!";
-          chrome.storage.local.set({ screen: SCREENS.WELCOME });
-
+          chrome.storage.local.set({ screen: SCREENS.PAUSE });
           showScreen(SCREENS.PAUSE);
         }
       }
+
       if (screen === SCREENS.PAUSE && data.startTime && data.durationPause) {
         const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
         const remaining = data.durationPause - elapsed;
+
+        durationFocusGlobal = data.durationFocus;
+        durationPauseGlobal = data.durationPause;
+        totalCycles = data.cycles || 1;
+        currentCycle = 1;
 
         if (remaining > 0) {
           startCountdownPause(remaining);
