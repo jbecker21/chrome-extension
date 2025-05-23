@@ -11,21 +11,27 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsScreen: document.getElementById("screen-settings"),
     focusScreen: document.getElementById("screen-focus"),
     pauseScreen: document.getElementById("screen-pause"),
+
     welcomeButton: document.getElementById("begin-button"),
     startButton: document.getElementById("start-button"),
+
+    decreaseStudyTimeButton: document.getElementById("decrease-study-time"),
+    increaseStudyTimeButton: document.getElementById("increase-study-time"),
+    decreasePauseTimeButton: document.getElementById("decrease-pause-time"),
+    increasePauseTimeButton: document.getElementById("increase-pause-time"),
+    decreaseCycleNumberButton: document.getElementById("decrease-cycle-number"),
+    increaseCycleNumberButton: document.getElementById("increase-cycle-number"),
+
+    studyTimeDisplay: document.getElementById("study-time-display"),
+    pauseTimeDisplay: document.getElementById("pause-time-display"),
+    cycleNumberDisplay: document.getElementById("cycle-number-display"),
+
     focusSettingsButton: document.getElementById("settings-button-focus"),
     pauseSettingsButton: document.getElementById("settings-button-pause"),
     skipFocusButton: document.getElementById("skip-focus-button"),
     skipPauseButton: document.getElementById("skip-pause-button"),
     countdownTimerFocus: document.getElementById("countdown-timer-focus"),
     countdownTimerPause: document.getElementById("countdown-timer-pause"),
-    formError: document.getElementById("form-error"),
-    studyHours: document.getElementById("study-hours"),
-    studyMinutes: document.getElementById("study-minutes"),
-    pauseHours: document.getElementById("pause-hours"),
-    pauseMinutes: document.getElementById("pause-minutes"),
-    cycles: document.getElementById("cycles"),
-    blockedSitesList: document.getElementById("blocked-sites-list"),
   };
 
   // Global Variables
@@ -35,6 +41,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let durationFocusGlobal = 0;
   let durationPauseGlobal = 0;
 
+  let currentStudyTime = 25;
+  let currentPauseTime = 10;
+  let currentCycleNumber = 2;
+
   // Event Handlers
 
   // Welcome -> Settings
@@ -43,34 +53,27 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ screen: SCREENS.SETTINGS });
   });
 
-  // Settings -> Starting Focus (if input is complete and correct)
+  // Settings -> Starting Focus
   elements.startButton.addEventListener("click", (e) => {
-    e.preventDefault();
-
-    const inputs = validateInputs();
-    if (!inputs) return;
-
     const startTime = Date.now();
 
     currentCycle = 1;
-    totalCycles = inputs.cycles;
-    durationFocusGlobal = inputs.totalSecondsFocus;
-    durationPauseGlobal = inputs.totalSecondsPause;
+    totalCycles = currentCycleNumber;
+    durationFocusGlobal = currentStudyTime * 60;
+    durationPauseGlobal = currentPauseTime * 60;
 
     chrome.storage.local.set({
       screen: SCREENS.FOCUS,
-      studyHours: inputs.studyHours,
-      studyMinutes: inputs.studyMinutes,
-      pauseHours: inputs.pauseHours,
-      pauseMinutes: inputs.pauseMinutes,
-      cycles: inputs.cycles,
-      durationFocus: inputs.totalSecondsFocus,
-      durationPause: inputs.totalSecondsPause,
+      studyTimeMinutes: currentStudyTime,
+      pauseTimePauseMinutes: currentPauseTime,
+      cycles: currentCycle,
+      durationFocus: durationFocusGlobal,
+      durationPause: durationPauseGlobal,
       startTime: startTime,
     });
 
     showScreen(SCREENS.FOCUS);
-    startCountdownFocus(inputs.totalSecondsFocus);
+    startCountdownFocus(durationFocusGlobal);
   });
 
   // Go Back to Settings Button
@@ -86,6 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ screen: SCREENS.SETTINGS });
     showScreen(SCREENS.SETTINGS);
   });
+
   // Skip Focus -> to Pause
   elements.skipFocusButton.addEventListener("click", () => {
     stopCountdown();
@@ -111,6 +115,37 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  elements.decreaseStudyTimeButton.addEventListener("click", () => {
+    if (currentStudyTime > 1) {
+      updateStudyTimeDisplay("-");
+    }
+  });
+
+  elements.increaseStudyTimeButton.addEventListener("click", () => {
+    updateStudyTimeDisplay("+");
+  });
+
+  elements.decreasePauseTimeButton.addEventListener("click", () => {
+    if (currentPauseTime > 1) {
+      updatePauseTimeDisplay("-");
+    }
+  });
+
+  elements.increasePauseTimeButton.addEventListener("click", () => {
+    updatePauseTimeDisplay("+");
+  });
+
+  elements.decreaseCycleNumberButton.addEventListener("click", () => {
+    console.log(currentCycleNumber);
+    if (currentCycleNumber > 1) {
+      updateCycleNumberDisplay("-");
+    }
+  });
+
+  elements.increaseCycleNumberButton.addEventListener("click", () => {
+    updateCycleNumberDisplay("+");
+  });
+
   // Helper Functions
 
   // Display Screen / Hide other screens
@@ -123,19 +158,6 @@ document.addEventListener("DOMContentLoaded", () => {
       screenName === SCREENS.FOCUS ? "block" : "none";
     elements.pauseScreen.style.display =
       screenName === SCREENS.PAUSE ? "block" : "none";
-  }
-
-  // Restore Input Values
-  function restoreInputValues(data) {
-    if (data.studyHours !== undefined)
-      elements.studyHours.value = data.studyHours;
-    if (data.studyMinutes !== undefined)
-      elements.studyMinutes.value = data.studyMinutes;
-    if (data.pauseHours !== undefined)
-      elements.pauseHours.value = data.pauseHours;
-    if (data.pauseMinutes !== undefined)
-      elements.pauseMinutes.value = data.pauseMinutes;
-    if (data.cycles !== undefined) elements.cycles.value = data.cycles;
   }
 
   // Formats seconds as HH:MM:SS and updates the visible timer display accordingly
@@ -224,85 +246,51 @@ document.addEventListener("DOMContentLoaded", () => {
       countdownInterval = null;
     }
   }
-  // Shows or hides an error message in the form
-  function setError(message) {
-    if (!message) {
-      elements.formError.style.display = "none";
-      elements.formError.textContent = "";
-    } else {
-      elements.formError.textContent = message;
-      elements.formError.style.display = "block";
+
+  // Update Study Time Display
+  function updateStudyTimeDisplay(mathOperation) {
+    if (mathOperation === "-") {
+      currentStudyTime--;
     }
+    if (mathOperation === "+") {
+      currentStudyTime++;
+    }
+    elements.studyTimeDisplay.textContent = currentStudyTime;
+    chrome.storage.local.set({ studyTimeMinutes: currentStudyTime });
   }
 
-  // Validates user input fields and returns parsed values or null if invalid
-  function validateInputs() {
-    const studyHours = parseInt(elements.studyHours.value.trim(), 10);
-    const studyMinutes = parseInt(elements.studyMinutes.value.trim(), 10);
-    const pauseHours = parseInt(elements.pauseHours.value.trim(), 10);
-    const pauseMinutes = parseInt(elements.pauseMinutes.value.trim(), 10);
-    const cycles = parseInt(elements.cycles.value.trim(), 10);
-
-    if (
-      isNaN(studyHours) &&
-      isNaN(studyMinutes) &&
-      isNaN(pauseHours) &&
-      isNaN(pauseMinutes) &&
-      isNaN(cycles)
-    ) {
-      setError("Please fill in the fields");
-      return null;
+  // Update Pause Time Display
+  function updatePauseTimeDisplay(mathOperation) {
+    if (mathOperation === "-") {
+      currentPauseTime--;
     }
-
-    if (isNaN(studyHours) && isNaN(studyMinutes)) {
-      setError("Please enter study duration");
-      return null;
+    if (mathOperation === "+") {
+      currentPauseTime++;
     }
+    elements.pauseTimeDisplay.textContent = currentPauseTime;
+    chrome.storage.local.set({ pauseTimePauseMinutes: currentPauseTime });
+  }
 
-    if (isNaN(pauseHours) && isNaN(pauseMinutes)) {
-      setError("Please enter pause duration");
-      return null;
+  function updateCycleNumberDisplay(mathOperation) {
+    if (mathOperation === "-") {
+      currentCycleNumber--;
     }
-
-    if (isNaN(cycles) || cycles < 1) {
-      setError("Please enter the number of cycles");
-      return null;
+    if (mathOperation === "+") {
+      currentCycleNumber++;
     }
-
-    const totalSecondsFocus =
-      ((studyHours || 0) * 60 + (studyMinutes || 0)) * 60;
-    const totalSecondsPause =
-      ((pauseHours || 0) * 60 + (pauseMinutes || 0)) * 60;
-
-    if (totalSecondsFocus <= 0 || totalSecondsPause <= 0) {
-      setError("Wrong time input");
-      return null;
-    }
-
-    setError(null);
-    return {
-      studyHours,
-      studyMinutes,
-      pauseHours,
-      pauseMinutes,
-      cycles,
-      totalSecondsFocus,
-      totalSecondsPause,
-    };
+    elements.cycleNumberDisplay.textContent = currentCycleNumber;
+    chrome.storage.local.set({ cycles: currentCycleNumber });
   }
 
   chrome.storage.local.get(
     [
       "screen",
-      "studyHours",
-      "studyMinutes",
-      "pauseHours",
-      "pauseMinutes",
+      "studyTimeMinutes",
+      "pauseTimePauseMinutes",
       "cycles",
       "durationFocus",
       "durationPause",
       "startTime",
-      "blockedSites",
     ],
     (data) => {
       const screen = data.screen || SCREENS.WELCOME;
@@ -310,7 +298,13 @@ document.addEventListener("DOMContentLoaded", () => {
       showScreen(screen);
 
       if (screen === SCREENS.SETTINGS) {
-        restoreInputValues(data);
+        currentStudyTime = data.studyTimeMinutes || currentStudyTime;
+        currentPauseTime = data.pauseTimePauseMinutes || currentPauseTime;
+        currentCycleNumber = data.cycles || currentCycleNumber;
+
+        elements.studyTimeDisplay.textContent = currentStudyTime;
+        elements.pauseTimeDisplay.textContent = currentPauseTime;
+        elements.cycleNumberDisplay.textContent = currentCycleNumber;
       }
 
       if (screen === SCREENS.FOCUS && data.startTime && data.durationFocus) {

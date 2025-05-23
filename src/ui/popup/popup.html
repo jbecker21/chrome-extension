@@ -15,70 +15,37 @@
       </div>
       <!-- Settings-Page -->
       <div id="screen-settings" style="display: none">
-        <div class="title">FocusUp</div>
-        <p>Time to concentrate - No Time for Distractions!</p>
+        <div class="title">FocusUp Settings</div>
         <form id="focus-form">
-          <label for="study-hours">Study time:</label>
-          <div class="time-row">
-            <input
-              type="number"
-              id="study-hours"
-              placeholder="hh"
-              min="1"
-              max="10"
-              required
-            />
-            <input
-              type="number"
-              id="study-minutes"
-              placeholder="mm"
-              min="0"
-              max="59"
-            />
+          <div class="study-time-row">
+            <label for="study-hours" id="study-time">Study time:</label>
+            <div class="focus-time-container" id="focus-time-container">
+              <button type="button" id="decrease-study-time">−</button>
+              <div id="study-time-display">25</div>
+              <button type="button" id="increase-study-time">+</button>
+              <span class="minutes-label">min</span>
+            </div>
           </div>
-          <label for="pause-hours">Pause time:</label>
-          <div class="time-row">
-            <input
-              type="number"
-              id="pause-hours"
-              placeholder="hh"
-              min="1"
-              max="10"
-              required
-            />
-            <input
-              type="number"
-              id="pause-minutes"
-              placeholder="mm"
-              min="0"
-              max="59"
-            />
+          <div class="pause-time-row">
+            <label for="pause-hours" id="pause-time">Pause time:</label>
+            <div class="pause-time-container" id="pause-time-container">
+              <button type="button" id="decrease-pause-time">−</button>
+              <div id="pause-time-display">10</div>
+              <button type="button" id="increase-pause-time">+</button>
+              <span class="minutes-label">min</span>
+            </div>
           </div>
-          <label for="cycles">Circle (times to repeat):</label>
-          <input
-            type="number"
-            id="cycles"
-            min="1"
-            max="10"
-            placeholder="1–10"
-            required
-          />
-          <label for="block-url">Blocking websites:</label>
-          <input
-            type="text"
-            id="block-url"
-            placeholder="Type a URL and press Enter"
-          />
-          <ul id="blocked-sites-list"></ul>
-          <p
-            id="form-error"
-            class="error-message"
-            style="color: red; display: none"
-          ></p>
-          <button type="submit" class="button" id="start-button">
-            <span>Start Focus</span>
+          <div class="cycle-number-row">
+            <label for="cycle-hours" id="cycle-number">Cycles:</label>
+            <div class="cycle-number-container" id="cycle-number-container">
+              <button type="button" id="decrease-cycle-number">−</button>
+              <div id="cycle-number-display">2</div>
+              <button type="button" id="increase-cycle-number">+</button>
+            </div>
+          </div>
+          <button class="button" id="start-button">
+            <span>Start</span>
           </button>
-        </form>
       </div>
       <!-- Focus-Page -->
       <div id="screen-focus" style="display: none">
