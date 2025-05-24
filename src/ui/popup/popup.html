@@ -13,9 +13,20 @@
         <div class="title">Welcome to FocusUp!</div>
         <button class="button" id="begin-button"><span>Begin</span></button>
       </div>
+      <!-- Navigation -->
+      <nav id="navbar">
+        <ul>
+          <li><a id="link-settings" href="#screen-settings">Settings</a></li>
+          <li>
+            <a id="link-blocking-websites" href="#blocking-websites"
+              >Blocking websites</a
+            >
+          </li>
+        </ul>
+      </nav>
       <!-- Settings-Page -->
       <div id="screen-settings" style="display: none">
-        <div class="title">FocusUp Settings</div>
+        <div class="title">FocusUp</div>
         <form id="focus-form">
           <div class="study-time-row">
             <label for="study-hours" id="study-time">Study time:</label>
@@ -46,6 +57,20 @@
           <button class="button" id="start-button">
             <span>Start</span>
           </button>
+        </form>
+      </div>
+      <!-- Blocking websites-->
+      <div id="screen-blocking-websites" style="display: none">
+        <form id="url-form">
+          <input
+            type="text"
+            name="url"
+            id="url-input"
+            placeholder="Enter a website URL (e.g. youtube.com)"
+            required
+          />
+        </form>
+        <div id="url-list"></div>
       </div>
       <!-- Focus-Page -->
       <div id="screen-focus" style="display: none">

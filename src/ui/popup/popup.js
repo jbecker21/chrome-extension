@@ -4,6 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     SETTINGS: "settings",
     FOCUS: "focus",
     PAUSE: "pause",
+    BLOCKING: "blocking",
   };
 
   const elements = {
@@ -11,9 +12,13 @@ document.addEventListener("DOMContentLoaded", () => {
     settingsScreen: document.getElementById("screen-settings"),
     focusScreen: document.getElementById("screen-focus"),
     pauseScreen: document.getElementById("screen-pause"),
+    blockingWebsitesScreen: document.getElementById("screen-blocking-websites"),
 
     welcomeButton: document.getElementById("begin-button"),
     startButton: document.getElementById("start-button"),
+
+    settingsLink: document.getElementById("link-settings"),
+    blockingWebsitesLink: document.getElementById("link-blocking-websites"),
 
     decreaseStudyTimeButton: document.getElementById("decrease-study-time"),
     increaseStudyTimeButton: document.getElementById("increase-study-time"),
@@ -25,6 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
     studyTimeDisplay: document.getElementById("study-time-display"),
     pauseTimeDisplay: document.getElementById("pause-time-display"),
     cycleNumberDisplay: document.getElementById("cycle-number-display"),
+
+    websiteForm: document.getElementById("url-form"),
+    websiteInput: document.getElementById("url-input"),
+    websitesList: document.getElementById("url-list"),
 
     focusSettingsButton: document.getElementById("settings-button-focus"),
     pauseSettingsButton: document.getElementById("settings-button-pause"),
@@ -47,10 +56,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Event Handlers
 
+  elements.websiteForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const url = elements.websiteInput.value.trim();
+    if (url) {
+      const box = document.createElement("div");
+      box.className = "url-box";
+      box.textContent = url;
+      elements.websitesList.appendChild(box);
+      elements.websiteInput.value = "";
+    }
+  });
   // Welcome -> Settings
   elements.welcomeButton.addEventListener("click", () => {
     showScreen(SCREENS.SETTINGS);
-    chrome.storage.local.set({ screen: SCREENS.SETTINGS });
+    document.getElementById("navbar").style.display = "flex";
   });
 
   // Settings -> Starting Focus
@@ -76,17 +97,24 @@ document.addEventListener("DOMContentLoaded", () => {
     startCountdownFocus(durationFocusGlobal);
   });
 
+  // Navigation
+  elements.settingsLink.addEventListener("click", () => {
+    showScreen(SCREENS.SETTINGS);
+  });
+
+  elements.blockingWebsitesLink.addEventListener("click", () => {
+    showScreen(SCREENS.BLOCKING);
+  });
+
   // Go Back to Settings Button
   elements.focusSettingsButton.addEventListener("click", () => {
     stopCountdown();
-    chrome.storage.local.set({ screen: SCREENS.SETTINGS });
     showScreen(SCREENS.SETTINGS);
   });
 
   // Go Back to Settings Button
   elements.pauseSettingsButton.addEventListener("click", () => {
     stopCountdown();
-    chrome.storage.local.set({ screen: SCREENS.SETTINGS });
     showScreen(SCREENS.SETTINGS);
   });
 
@@ -136,7 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   elements.decreaseCycleNumberButton.addEventListener("click", () => {
-    console.log(currentCycleNumber);
     if (currentCycleNumber > 1) {
       updateCycleNumberDisplay("-");
     }
@@ -158,6 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
       screenName === SCREENS.FOCUS ? "block" : "none";
     elements.pauseScreen.style.display =
       screenName === SCREENS.PAUSE ? "block" : "none";
+    elements.blockingWebsitesScreen.style.display =
+      screenName === SCREENS.BLOCKING ? "block" : "none";
+    chrome.storage.local.set({ screen: screenName });
   }
 
   // Formats seconds as HH:MM:SS and updates the visible timer display accordingly
