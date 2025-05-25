@@ -193,3 +193,12 @@
   color: #2b67f6;
   font-weight: 600;
 }
+
+#url-list {
+  max-height: 250px;
+  font-size: 12px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  padding: 5px;
+  box-sizing: border-box;
+}

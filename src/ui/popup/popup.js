@@ -34,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
     websiteForm: document.getElementById("url-form"),
     websiteInput: document.getElementById("url-input"),
     websitesList: document.getElementById("url-list"),
+    errorBox: document.getElementById("url-error"),
 
     focusSettingsButton: document.getElementById("settings-button-focus"),
     pauseSettingsButton: document.getElementById("settings-button-pause"),
@@ -43,6 +44,11 @@ document.addEventListener("DOMContentLoaded", () => {
     countdownTimerPause: document.getElementById("countdown-timer-pause"),
   };
 
+  // Constants
+  const DEFAULT_STUDY_TIME = 25;
+  const DEFAULT_PAUSE_TIME = 10;
+  const DEFAULT_CYCLES = 2;
+
   // Global Variables
   let countdownInterval = null;
   let currentCycle = 0;
@@ -50,24 +56,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let durationFocusGlobal = 0;
   let durationPauseGlobal = 0;
 
-  let currentStudyTime = 25;
-  let currentPauseTime = 10;
-  let currentCycleNumber = 2;
+  let currentStudyTime = DEFAULT_STUDY_TIME;
+  let currentPauseTime = DEFAULT_PAUSE_TIME;
+  let currentCycleNumber = DEFAULT_CYCLES;
 
   // Event Handlers
 
-  elements.websiteForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-
-    const url = elements.websiteInput.value.trim();
-    if (url) {
-      const box = document.createElement("div");
-      box.className = "url-box";
-      box.textContent = url;
-      elements.websitesList.appendChild(box);
-      elements.websiteInput.value = "";
-    }
-  });
   // Welcome -> Settings
   elements.welcomeButton.addEventListener("click", () => {
     showScreen(SCREENS.SETTINGS);
@@ -171,6 +165,54 @@ document.addEventListener("DOMContentLoaded", () => {
 
   elements.increaseCycleNumberButton.addEventListener("click", () => {
     updateCycleNumberDisplay("+");
+  });
+
+  elements.websiteForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    let input = elements.websiteInput.value.trim();
+    const errorBox = elements.errorBox;
+    errorBox.style.visibility = "hidden";
+    errorBox.textContent = "";
+
+    if (!input) return;
+
+    input = input.replace(/^https?:\/\//, "").replace(/^www\./, "");
+
+    const domain = input.split(/[/?#]/)[0];
+
+    const domainPattern = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!domainPattern.test(domain)) {
+      errorBox.textContent = "Please enter a valid domain, like youtube.com.";
+      errorBox.style.visibility = "visible";
+      return;
+    }
+
+    chrome.storage.local.get(["blocked_websites"], (data) => {
+      const currentList = data.blocked_websites || [];
+
+      if (currentList.includes(domain)) {
+        errorBox.textContent = "This domain is already blocked.";
+        errorBox.style.visibility = "visible";
+        return;
+      }
+
+      fetch("https://" + domain, { method: "HEAD", mode: "no-cors" })
+        .then(() => {
+          const updatedList = [...currentList, domain];
+          chrome.storage.local.set({ blocked_websites: updatedList }, () => {
+            renderBlockedWebsites(updatedList);
+            errorBox.style.visibility = "hidden";
+            errorBox.textContent = "";
+          });
+        })
+        .catch(() => {
+          errorBox.textContent = "This domain is not reachable.";
+          errorBox.style.visibility = "visible";
+        });
+    });
+
+    elements.websiteInput.value = "";
   });
 
   // Helper Functions
@@ -312,6 +354,46 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.set({ cycles: currentCycleNumber });
   }
 
+  function renderBlockedWebsites(urls) {
+    elements.websitesList.innerHTML = "";
+
+    urls.forEach((url, index) => {
+      const box = document.createElement("div");
+      box.className = "url-box";
+      box.style.position = "relative"; // wichtig für die Positionierung des Kreuzes
+
+      // Domain-Text
+      const text = document.createElement("span");
+      text.textContent = url;
+      box.appendChild(text);
+
+      // Entfernen-Kreuz
+      const closeBtn = document.createElement("button");
+      closeBtn.textContent = "×"; // kleines Kreuz
+      closeBtn.style.position = "absolute";
+      closeBtn.style.top = "5px";
+      closeBtn.style.right = "5px";
+      closeBtn.style.border = "none";
+      closeBtn.style.background = "transparent";
+      closeBtn.style.cursor = "pointer";
+      closeBtn.style.fontSize = "16px";
+      closeBtn.style.lineHeight = "16px";
+      closeBtn.style.padding = "0";
+      closeBtn.style.color = "#900"; // rot
+
+      // Klick-Event zum Entfernen der Domain
+      closeBtn.addEventListener("click", () => {
+        const updatedList = urls.filter((_, i) => i !== index);
+        chrome.storage.local.set({ blocked_websites: updatedList }, () => {
+          renderBlockedWebsites(updatedList);
+        });
+      });
+
+      box.appendChild(closeBtn);
+      elements.websitesList.appendChild(box);
+    });
+  }
+
   chrome.storage.local.get(
     [
       "screen",
@@ -320,6 +402,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "cycles",
       "durationFocus",
       "durationPause",
+      "blocked_websites",
       "startTime",
     ],
     (data) => {
@@ -328,9 +411,9 @@ document.addEventListener("DOMContentLoaded", () => {
       showScreen(screen);
 
       if (screen === SCREENS.SETTINGS) {
-        currentStudyTime = data.studyTimeMinutes || currentStudyTime;
-        currentPauseTime = data.pauseTimePauseMinutes || currentPauseTime;
-        currentCycleNumber = data.cycles || currentCycleNumber;
+        currentStudyTime = data.studyTimeMinutes ?? DEFAULT_STUDY_TIME;
+        currentPauseTime = data.pauseTimePauseMinutes ?? DEFAULT_PAUSE_TIME;
+        currentCycleNumber = data.cycles ?? DEFAULT_CYCLES;
 
         elements.studyTimeDisplay.textContent = currentStudyTime;
         elements.pauseTimeDisplay.textContent = currentPauseTime;
@@ -371,6 +454,9 @@ document.addEventListener("DOMContentLoaded", () => {
           chrome.storage.local.set({ screen: SCREENS.WELCOME });
           showScreen(SCREENS.WELCOME);
         }
+      }
+      if (Array.isArray(data.blocked_websites)) {
+        renderBlockedWebsites(data.blocked_websites);
       }
     }
   );

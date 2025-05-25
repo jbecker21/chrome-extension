@@ -66,10 +66,16 @@
             type="text"
             name="url"
             id="url-input"
-            placeholder="Enter a website URL (e.g. youtube.com)"
+            placeholder="Enter a domain (e.g. youtube.com)"
             required
           />
         </form>
+        <div
+          id="url-error"
+          style="color: red; visibility: hidden; min-height: 2em"
+        >
+          This domain is not reachable
+        </div>
         <div id="url-list"></div>
       </div>
       <!-- Focus-Page -->
