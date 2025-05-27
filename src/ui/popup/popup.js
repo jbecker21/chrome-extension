@@ -55,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let totalCycles = 0;
   let durationFocusGlobal = 0;
   let durationPauseGlobal = 0;
+  let isStudyMode = false;
 
   let currentStudyTime = DEFAULT_STUDY_TIME;
   let currentPauseTime = DEFAULT_PAUSE_TIME;
@@ -202,6 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const updatedList = [...currentList, domain];
           chrome.storage.local.set({ blocked_websites: updatedList }, () => {
             renderBlockedWebsites(updatedList);
+            applyBlockingRules(updatedList, isStudyMode);
             errorBox.style.visibility = "hidden";
             errorBox.textContent = "";
           });
@@ -252,10 +254,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Starts the focus timer countdown, switches pause screen when done
   function startCountdownFocus(duration) {
+    isStudyMode = true;
     let remaining = duration;
     updateTimerDisplay(remaining);
 
     if (countdownInterval) clearInterval(countdownInterval);
+
+    // Websites blockieren zu Beginn der Study Time
+    chrome.storage.local.get(["blocked_websites"], (data) => {
+      const blockedWebsites = data.blocked_websites || [];
+      applyBlockingRules(blockedWebsites, true);
+    });
 
     countdownInterval = setInterval(() => {
       remaining--;
@@ -263,6 +272,12 @@ document.addEventListener("DOMContentLoaded", () => {
       if (remaining < 0) {
         clearInterval(countdownInterval);
         countdownInterval = null;
+
+        // Webseiten-Blockierung deaktivieren
+        chrome.storage.local.get(["blocked_websites"], (data) => {
+          const blockedWebsites = data.blocked_websites || [];
+          applyBlockingRules(blockedWebsites, false);
+        });
 
         chrome.storage.local.set({
           screen: SCREENS.PAUSE,
@@ -279,6 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Starts the pause timer countdown, switches to focus screen or welcome when done
   function startCountdownPause(duration) {
+    isStudyMode = false;
     let remaining = duration;
     updateTimerDisplay(remaining);
 
@@ -313,10 +329,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Stops the current countdown timer if running
   function stopCountdown() {
+    isStudyMode = false;
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;
     }
+
+    // Webseiten-Blockierung deaktivieren
+    chrome.storage.local.get(["blocked_websites"], (data) => {
+      const blockedWebsites = data.blocked_websites || [];
+      applyBlockingRules(blockedWebsites, false);
+    });
   }
 
   // Update Study Time Display
@@ -360,16 +383,14 @@ document.addEventListener("DOMContentLoaded", () => {
     urls.forEach((url, index) => {
       const box = document.createElement("div");
       box.className = "url-box";
-      box.style.position = "relative"; // wichtig für die Positionierung des Kreuzes
+      box.style.position = "relative";
 
-      // Domain-Text
       const text = document.createElement("span");
       text.textContent = url;
       box.appendChild(text);
 
-      // Entfernen-Kreuz
       const closeBtn = document.createElement("button");
-      closeBtn.textContent = "×"; // kleines Kreuz
+      closeBtn.textContent = "×";
       closeBtn.style.position = "absolute";
       closeBtn.style.top = "5px";
       closeBtn.style.right = "5px";
@@ -379,12 +400,12 @@ document.addEventListener("DOMContentLoaded", () => {
       closeBtn.style.fontSize = "16px";
       closeBtn.style.lineHeight = "16px";
       closeBtn.style.padding = "0";
-      closeBtn.style.color = "#900"; // rot
+      closeBtn.style.color = "#900";
 
-      // Klick-Event zum Entfernen der Domain
       closeBtn.addEventListener("click", () => {
         const updatedList = urls.filter((_, i) => i !== index);
         chrome.storage.local.set({ blocked_websites: updatedList }, () => {
+          applyBlockingRules(updatedList, isStudyMode);
           renderBlockedWebsites(updatedList);
         });
       });
@@ -392,6 +413,42 @@ document.addEventListener("DOMContentLoaded", () => {
       box.appendChild(closeBtn);
       elements.websitesList.appendChild(box);
     });
+  }
+
+  function applyBlockingRules(domains, isStudyTime) {
+    const ruleIds = domains.map((_, index) => 1000 + index);
+
+    if (!isStudyTime) {
+      chrome.declarativeNetRequest.updateDynamicRules(
+        {
+          removeRuleIds: ruleIds,
+        },
+        () => {
+          console.log("Blocking rules removed:", ruleIds);
+        }
+      );
+      return;
+    }
+
+    const rules = domains.map((domain, index) => ({
+      id: 1000 + index,
+      priority: 1,
+      action: { type: "block" },
+      condition: {
+        urlFilter: domain,
+        resourceTypes: ["main_frame"],
+      },
+    }));
+
+    chrome.declarativeNetRequest.updateDynamicRules(
+      {
+        removeRuleIds: ruleIds,
+        addRules: rules,
+      },
+      () => {
+        console.log("Blocking rules applied:", rules);
+      }
+    );
   }
 
   chrome.storage.local.get(

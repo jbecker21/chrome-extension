@@ -6,5 +6,12 @@
   "action": {
     "default_popup": "ui/popup/popup.html"
   },
-  "permissions": ["scripting", "activeTab", "tabs", "storage"]
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "tabs",
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": ["<all_urls>"]
 }
