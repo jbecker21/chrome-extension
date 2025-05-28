@@ -5,476 +5,226 @@ import {
   DEFAULT_CYCLES,
 } from "./utils/constants.js";
 import { getDOMElements } from "./utils/domElements.js";
+import { getStorage, setStorage } from "./modules/storageManager.js";
+import {
+  setupTimeControls,
+  initializeTimeDisplays,
+} from "./modules/timeSettings.js";
+import { showScreen } from "./modules/screenManager.js";
+import {
+  startCountdown,
+  stopCountdown,
+  getIsStudyMode,
+  restoreCountdown,
+} from "./modules/countDownTimer.js";
+import {
+  handleWebsiteFormSubmit,
+  renderBlockedWebsites,
+  applyBlockingRules,
+  initializeBlockedWebsites,
+} from "./modules/websiteBlocker.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const elements = getDOMElements();
 
-  // Global Variables
-  let countdownInterval = null;
-  let currentCycle = 0;
-  let totalCycles = 0;
-  let durationFocusGlobal = 0;
-  let durationPauseGlobal = 0;
-  let isStudyMode = false;
+  const appState = {
+    currentStudyTime: DEFAULT_STUDY_TIME,
+    currentPauseTime: DEFAULT_PAUSE_TIME,
+    currentCycleNumber: DEFAULT_CYCLES,
+    currentCycle: 0,
+    totalCycles: 0,
+    durationFocusGlobal: 0,
+    durationPauseGlobal: 0,
+  };
 
-  let currentStudyTime = DEFAULT_STUDY_TIME;
-  let currentPauseTime = DEFAULT_PAUSE_TIME;
-  let currentCycleNumber = DEFAULT_CYCLES;
+  const timerCallbacks = {
+    applyBlockingRules: applyBlockingRules,
+    onTick: (remainingTime) => {},
+    onEnd: async (mode) => {
+      if (mode === "focus") {
+        appState.currentCycle++;
+        if (appState.currentCycle <= appState.totalCycles) {
+          await setStorage({
+            screen: SCREENS.PAUSE,
+            startTime: Date.now(),
+            currentCycle: appState.currentCycle,
+          });
+          showScreen(SCREENS.PAUSE, elements);
+          startCountdown(
+            appState.durationPauseGlobal,
+            "pause",
+            elements,
+            appState,
+            timerCallbacks
+          );
+        } else {
+          await setStorage({ screen: SCREENS.WELCOME });
+          showScreen(SCREENS.WELCOME, elements);
+        }
+      } else if (mode === "pause") {
+        if (appState.currentCycle <= appState.totalCycles) {
+          await setStorage({
+            screen: SCREENS.FOCUS,
+            startTime: Date.now(),
+            currentCycle: appState.currentCycle,
+          });
+          showScreen(SCREENS.FOCUS, elements);
+          startCountdown(
+            appState.durationFocusGlobal,
+            "focus",
+            elements,
+            appState,
+            timerCallbacks
+          );
+        } else {
+          await setStorage({ screen: SCREENS.WELCOME });
+          showScreen(SCREENS.WELCOME, elements);
+        }
+      }
+    },
+  };
 
-  // Event Handlers
+  // --- Initial Setup & State Recovery ---
+  const storedData = await getStorage([
+    "screen",
+    "studyTimeMinutes",
+    "pauseTimeMinutes",
+    "cycles",
+    "durationFocus",
+    "durationPause",
+    "blocked_websites",
+    "startTime",
+    "currentCycle",
+  ]);
 
-  // Welcome -> Settings
+  appState.currentStudyTime = storedData.studyTimeMinutes ?? DEFAULT_STUDY_TIME;
+  appState.currentPauseTime = storedData.pauseTimeMinutes ?? DEFAULT_PAUSE_TIME;
+  appState.currentCycleNumber = storedData.cycles ?? DEFAULT_CYCLES;
+  appState.currentCycle = storedData.currentCycle ?? 1; // Initialisierung der aktuellen Zyklusnummer
+  appState.totalCycles = appState.currentCycleNumber; // Initialisierung der Gesamtzahl der Zyklen
+
+  initializeTimeDisplays(elements, appState);
+  initializeBlockedWebsites(elements, getIsStudyMode, applyBlockingRules);
+
+  const initialScreen = storedData.screen || SCREENS.WELCOME;
+  showScreen(initialScreen, elements);
+
+  appState.durationFocusGlobal =
+    storedData.durationFocus ?? appState.currentStudyTime * 60;
+  appState.durationPauseGlobal =
+    storedData.durationPause ?? appState.currentPauseTime * 60;
+
+  restoreCountdown(
+    elements,
+    appState,
+    timerCallbacks,
+    storedData,
+    initialScreen
+  );
+
+  // --- Event Listeners ---
+
   elements.welcomeButton.addEventListener("click", () => {
-    showScreen(SCREENS.SETTINGS);
-    document.getElementById("navbar").style.display = "flex";
+    showScreen(SCREENS.SETTINGS, elements);
   });
 
-  // Settings -> Starting Focus
-  elements.startButton.addEventListener("click", (e) => {
-    const startTime = Date.now();
+  elements.startButton.addEventListener("click", async () => {
+    appState.totalCycles = appState.currentCycleNumber; // Verwende appState
+    appState.currentCycle = 1; // Verwende appState
+    appState.durationFocusGlobal = appState.currentStudyTime * 60; // Verwende appState
+    appState.durationPauseGlobal = appState.currentPauseTime * 60; // Verwende appState
 
-    currentCycle = 1;
-    totalCycles = currentCycleNumber;
-    durationFocusGlobal = currentStudyTime * 60;
-    durationPauseGlobal = currentPauseTime * 60;
-
-    chrome.storage.local.set({
+    await setStorage({
       screen: SCREENS.FOCUS,
-      studyTimeMinutes: currentStudyTime,
-      pauseTimePauseMinutes: currentPauseTime,
-      cycles: currentCycle,
-      durationFocus: durationFocusGlobal,
-      durationPause: durationPauseGlobal,
-      startTime: startTime,
+      studyTimeMinutes: appState.currentStudyTime,
+      pauseTimeMinutes: appState.currentPauseTime,
+      cycles: appState.currentCycleNumber,
+      currentCycle: appState.currentCycle, // Verwende appState
+      durationFocus: appState.durationFocusGlobal, // Verwende appState
+      durationPause: appState.durationPauseGlobal, // Verwende appState
+      startTime: Date.now(),
     });
 
-    showScreen(SCREENS.FOCUS);
-    startCountdownFocus(durationFocusGlobal);
+    showScreen(SCREENS.FOCUS, elements);
+    startCountdown(
+      appState.durationFocusGlobal, // Verwende appState
+      "focus",
+      elements,
+      appState,
+      timerCallbacks
+    );
   });
 
-  // Navigation
   elements.settingsLink.addEventListener("click", () => {
-    showScreen(SCREENS.SETTINGS);
+    stopCountdown(elements, timerCallbacks);
+    showScreen(SCREENS.SETTINGS, elements);
   });
 
   elements.blockingWebsitesLink.addEventListener("click", () => {
-    showScreen(SCREENS.BLOCKING);
+    showScreen(SCREENS.BLOCKING, elements);
   });
 
-  // Go Back to Settings Button
   elements.focusSettingsButton.addEventListener("click", () => {
-    stopCountdown();
-    showScreen(SCREENS.SETTINGS);
+    stopCountdown(elements, timerCallbacks);
+    showScreen(SCREENS.SETTINGS, elements);
   });
 
-  // Go Back to Settings Button
   elements.pauseSettingsButton.addEventListener("click", () => {
-    stopCountdown();
-    showScreen(SCREENS.SETTINGS);
+    stopCountdown(elements, timerCallbacks);
+    showScreen(SCREENS.SETTINGS, elements);
   });
 
-  // Skip Focus -> to Pause
-  elements.skipFocusButton.addEventListener("click", () => {
-    stopCountdown();
-    chrome.storage.local.set({ screen: SCREENS.PAUSE, startTime: Date.now() });
-    showScreen(SCREENS.PAUSE);
-    startCountdownPause(durationPauseGlobal);
+  elements.skipFocusButton.addEventListener("click", async () => {
+    stopCountdown(elements, timerCallbacks);
+    appState.currentCycle++; // Verwende appState
+    await setStorage({
+      screen: SCREENS.PAUSE,
+      startTime: Date.now(),
+      currentCycle: appState.currentCycle, // Verwende appState
+    });
+    showScreen(SCREENS.PAUSE, elements);
+    startCountdown(
+      appState.durationPauseGlobal, // Verwende appState
+      "pause",
+      elements,
+      appState,
+      timerCallbacks
+    );
   });
 
-  // Skip Pause -> to Focus
-  elements.skipPauseButton.addEventListener("click", () => {
-    stopCountdown();
-    if (currentCycle < totalCycles) {
-      currentCycle++;
-      chrome.storage.local.set({
+  elements.skipPauseButton.addEventListener("click", async () => {
+    stopCountdown(elements, timerCallbacks);
+    if (appState.currentCycle < appState.totalCycles) {
+      // Verwende appState
+      appState.currentCycle++; // Verwende appState
+      await setStorage({
         screen: SCREENS.FOCUS,
         startTime: Date.now(),
+        currentCycle: appState.currentCycle, // Verwende appState
       });
-      showScreen(SCREENS.FOCUS);
-      startCountdownFocus(durationFocusGlobal);
-    } else {
-      chrome.storage.local.set({ screen: SCREENS.WELCOME });
-      showScreen(SCREENS.WELCOME);
-    }
-  });
-
-  elements.decreaseStudyTimeButton.addEventListener("click", () => {
-    if (currentStudyTime > 1) {
-      updateStudyTimeDisplay("-");
-    }
-  });
-
-  elements.increaseStudyTimeButton.addEventListener("click", () => {
-    updateStudyTimeDisplay("+");
-  });
-
-  elements.decreasePauseTimeButton.addEventListener("click", () => {
-    if (currentPauseTime > 1) {
-      updatePauseTimeDisplay("-");
-    }
-  });
-
-  elements.increasePauseTimeButton.addEventListener("click", () => {
-    updatePauseTimeDisplay("+");
-  });
-
-  elements.decreaseCycleNumberButton.addEventListener("click", () => {
-    if (currentCycleNumber > 1) {
-      updateCycleNumberDisplay("-");
-    }
-  });
-
-  elements.increaseCycleNumberButton.addEventListener("click", () => {
-    updateCycleNumberDisplay("+");
-  });
-
-  elements.websiteForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    let input = elements.websiteInput.value.trim();
-    const errorBox = elements.errorBox;
-    errorBox.style.visibility = "hidden";
-    errorBox.textContent = "";
-
-    if (!input) return;
-
-    input = input.replace(/^https?:\/\//, "").replace(/^www\./, "");
-
-    const domain = input.split(/[/?#]/)[0];
-
-    const domainPattern = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!domainPattern.test(domain)) {
-      errorBox.textContent = "Please enter a valid domain, like youtube.com.";
-      errorBox.style.visibility = "visible";
-      return;
-    }
-
-    chrome.storage.local.get(["blocked_websites"], (data) => {
-      const currentList = data.blocked_websites || [];
-
-      if (currentList.includes(domain)) {
-        errorBox.textContent = "This domain is already blocked.";
-        errorBox.style.visibility = "visible";
-        return;
-      }
-
-      fetch("https://" + domain, { method: "HEAD", mode: "no-cors" })
-        .then(() => {
-          const updatedList = [...currentList, domain];
-          chrome.storage.local.set({ blocked_websites: updatedList }, () => {
-            renderBlockedWebsites(updatedList);
-            applyBlockingRules(updatedList, isStudyMode);
-            errorBox.style.visibility = "hidden";
-            errorBox.textContent = "";
-          });
-        })
-        .catch(() => {
-          errorBox.textContent = "This domain is not reachable.";
-          errorBox.style.visibility = "visible";
-        });
-    });
-
-    elements.websiteInput.value = "";
-  });
-
-  // Helper Functions
-
-  // Display Screen / Hide other screens
-  function showScreen(screenName) {
-    elements.welcomeScreen.style.display =
-      screenName === SCREENS.WELCOME ? "block" : "none";
-    elements.settingsScreen.style.display =
-      screenName === SCREENS.SETTINGS ? "block" : "none";
-    elements.focusScreen.style.display =
-      screenName === SCREENS.FOCUS ? "block" : "none";
-    elements.pauseScreen.style.display =
-      screenName === SCREENS.PAUSE ? "block" : "none";
-    elements.blockingWebsitesScreen.style.display =
-      screenName === SCREENS.BLOCKING ? "block" : "none";
-    chrome.storage.local.set({ screen: screenName });
-  }
-
-  // Formats seconds as HH:MM:SS and updates the visible timer display accordingly
-  function updateTimerDisplay(seconds) {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    const timeString = `${String(hrs).padStart(2, "0")}:${String(mins).padStart(
-      2,
-      "0"
-    )}:${String(secs).padStart(2, "0")}`;
-
-    if (elements.focusScreen.style.display === "block") {
-      elements.countdownTimerFocus.textContent = timeString;
-    } else if (elements.pauseScreen.style.display === "block") {
-      elements.countdownTimerPause.textContent = timeString;
-    }
-  }
-
-  // Starts the focus timer countdown, switches pause screen when done
-  function startCountdownFocus(duration) {
-    isStudyMode = true;
-    let remaining = duration;
-    updateTimerDisplay(remaining);
-
-    if (countdownInterval) clearInterval(countdownInterval);
-
-    // Websites blockieren zu Beginn der Study Time
-    chrome.storage.local.get(["blocked_websites"], (data) => {
-      const blockedWebsites = data.blocked_websites || [];
-      applyBlockingRules(blockedWebsites, true);
-    });
-
-    countdownInterval = setInterval(() => {
-      remaining--;
-
-      if (remaining < 0) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-
-        // Webseiten-Blockierung deaktivieren
-        chrome.storage.local.get(["blocked_websites"], (data) => {
-          const blockedWebsites = data.blocked_websites || [];
-          applyBlockingRules(blockedWebsites, false);
-        });
-
-        chrome.storage.local.set({
-          screen: SCREENS.PAUSE,
-          startTime: Date.now(),
-        });
-        showScreen(SCREENS.PAUSE);
-        startCountdownPause(durationPauseGlobal);
-        return;
-      }
-
-      updateTimerDisplay(remaining);
-    }, 1000);
-  }
-
-  // Starts the pause timer countdown, switches to focus screen or welcome when done
-  function startCountdownPause(duration) {
-    isStudyMode = false;
-    let remaining = duration;
-    updateTimerDisplay(remaining);
-
-    if (countdownInterval) clearInterval(countdownInterval);
-
-    countdownInterval = setInterval(() => {
-      remaining--;
-
-      if (remaining < 0) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-
-        if (currentCycle < totalCycles) {
-          currentCycle++;
-          chrome.storage.local.set({
-            screen: SCREENS.FOCUS,
-            startTime: Date.now(),
-          });
-          showScreen(SCREENS.FOCUS);
-          startCountdownFocus(durationFocusGlobal);
-        } else {
-          chrome.storage.local.set({ screen: SCREENS.WELCOME });
-          showScreen(SCREENS.WELCOME);
-        }
-
-        return;
-      }
-
-      updateTimerDisplay(remaining);
-    }, 1000);
-  }
-
-  // Stops the current countdown timer if running
-  function stopCountdown() {
-    isStudyMode = false;
-    if (countdownInterval) {
-      clearInterval(countdownInterval);
-      countdownInterval = null;
-    }
-
-    // Webseiten-Blockierung deaktivieren
-    chrome.storage.local.get(["blocked_websites"], (data) => {
-      const blockedWebsites = data.blocked_websites || [];
-      applyBlockingRules(blockedWebsites, false);
-    });
-  }
-
-  // Update Study Time Display
-  function updateStudyTimeDisplay(mathOperation) {
-    if (mathOperation === "-") {
-      currentStudyTime--;
-    }
-    if (mathOperation === "+") {
-      currentStudyTime++;
-    }
-    elements.studyTimeDisplay.textContent = currentStudyTime;
-    chrome.storage.local.set({ studyTimeMinutes: currentStudyTime });
-  }
-
-  // Update Pause Time Display
-  function updatePauseTimeDisplay(mathOperation) {
-    if (mathOperation === "-") {
-      currentPauseTime--;
-    }
-    if (mathOperation === "+") {
-      currentPauseTime++;
-    }
-    elements.pauseTimeDisplay.textContent = currentPauseTime;
-    chrome.storage.local.set({ pauseTimePauseMinutes: currentPauseTime });
-  }
-
-  function updateCycleNumberDisplay(mathOperation) {
-    if (mathOperation === "-") {
-      currentCycleNumber--;
-    }
-    if (mathOperation === "+") {
-      currentCycleNumber++;
-    }
-    elements.cycleNumberDisplay.textContent = currentCycleNumber;
-    chrome.storage.local.set({ cycles: currentCycleNumber });
-  }
-
-  function renderBlockedWebsites(urls) {
-    elements.websitesList.innerHTML = "";
-
-    urls.forEach((url, index) => {
-      const box = document.createElement("div");
-      box.className = "url-box";
-      box.style.position = "relative";
-
-      const text = document.createElement("span");
-      text.textContent = url;
-      box.appendChild(text);
-
-      const closeBtn = document.createElement("button");
-      closeBtn.textContent = "×";
-      closeBtn.style.position = "absolute";
-      closeBtn.style.top = "5px";
-      closeBtn.style.right = "5px";
-      closeBtn.style.border = "none";
-      closeBtn.style.background = "transparent";
-      closeBtn.style.cursor = "pointer";
-      closeBtn.style.fontSize = "16px";
-      closeBtn.style.lineHeight = "16px";
-      closeBtn.style.padding = "0";
-      closeBtn.style.color = "#900";
-
-      closeBtn.addEventListener("click", () => {
-        const updatedList = urls.filter((_, i) => i !== index);
-        chrome.storage.local.set({ blocked_websites: updatedList }, () => {
-          applyBlockingRules(updatedList, isStudyMode);
-          renderBlockedWebsites(updatedList);
-        });
-      });
-
-      box.appendChild(closeBtn);
-      elements.websitesList.appendChild(box);
-    });
-  }
-
-  function applyBlockingRules(domains, isStudyTime) {
-    const ruleIds = domains.map((_, index) => 1000 + index);
-
-    if (!isStudyTime) {
-      chrome.declarativeNetRequest.updateDynamicRules(
-        {
-          removeRuleIds: ruleIds,
-        },
-        () => {
-          console.log("Blocking rules removed:", ruleIds);
-        }
+      showScreen(SCREENS.FOCUS, elements);
+      startCountdown(
+        appState.durationFocusGlobal, // Verwende appState
+        "focus",
+        elements,
+        appState,
+        timerCallbacks
       );
-      return;
+    } else {
+      await setStorage({ screen: SCREENS.WELCOME });
+      showScreen(SCREENS.WELCOME, elements);
     }
+  });
 
-    const rules = domains.map((domain, index) => ({
-      id: 1000 + index,
-      priority: 1,
-      action: { type: "block" },
-      condition: {
-        urlFilter: domain,
-        resourceTypes: ["main_frame"],
-      },
-    }));
+  setupTimeControls(elements, appState);
 
-    chrome.declarativeNetRequest.updateDynamicRules(
-      {
-        removeRuleIds: ruleIds,
-        addRules: rules,
-      },
-      () => {
-        console.log("Blocking rules applied:", rules);
-      }
+  elements.websiteForm.addEventListener("submit", (e) => {
+    handleWebsiteFormSubmit(
+      e,
+      elements,
+      getIsStudyMode,
+      renderBlockedWebsites,
+      applyBlockingRules
     );
-  }
-
-  chrome.storage.local.get(
-    [
-      "screen",
-      "studyTimeMinutes",
-      "pauseTimePauseMinutes",
-      "cycles",
-      "durationFocus",
-      "durationPause",
-      "blocked_websites",
-      "startTime",
-    ],
-    (data) => {
-      const screen = data.screen || SCREENS.WELCOME;
-
-      showScreen(screen);
-
-      if (screen === SCREENS.SETTINGS) {
-        currentStudyTime = data.studyTimeMinutes ?? DEFAULT_STUDY_TIME;
-        currentPauseTime = data.pauseTimePauseMinutes ?? DEFAULT_PAUSE_TIME;
-        currentCycleNumber = data.cycles ?? DEFAULT_CYCLES;
-
-        elements.studyTimeDisplay.textContent = currentStudyTime;
-        elements.pauseTimeDisplay.textContent = currentPauseTime;
-        elements.cycleNumberDisplay.textContent = currentCycleNumber;
-      }
-
-      if (screen === SCREENS.FOCUS && data.startTime && data.durationFocus) {
-        const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
-        const remaining = data.durationFocus - elapsed;
-
-        durationFocusGlobal = data.durationFocus;
-        durationPauseGlobal = data.durationPause;
-        totalCycles = data.cycles || 1;
-        currentCycle = 1;
-
-        if (remaining > 0) {
-          startCountdownFocus(remaining);
-        } else {
-          elements.countdownTimerFocus.textContent = "Zeit abgelaufen!";
-          chrome.storage.local.set({ screen: SCREENS.PAUSE });
-          showScreen(SCREENS.PAUSE);
-        }
-      }
-
-      if (screen === SCREENS.PAUSE && data.startTime && data.durationPause) {
-        const elapsed = Math.floor((Date.now() - data.startTime) / 1000);
-        const remaining = data.durationPause - elapsed;
-
-        durationFocusGlobal = data.durationFocus;
-        durationPauseGlobal = data.durationPause;
-        totalCycles = data.cycles || 1;
-        currentCycle = 1;
-
-        if (remaining > 0) {
-          startCountdownPause(remaining);
-        } else {
-          elements.countdownTimerPause.textContent = "Zeit abgelaufen!";
-          chrome.storage.local.set({ screen: SCREENS.WELCOME });
-          showScreen(SCREENS.WELCOME);
-        }
-      }
-      if (Array.isArray(data.blocked_websites)) {
-        renderBlockedWebsites(data.blocked_websites);
-      }
-    }
-  );
+  });
 });

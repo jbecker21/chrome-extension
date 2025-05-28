@@ -28,6 +28,8 @@ export function getDOMElements() {
     websitesList: document.getElementById("url-list"),
     errorBox: document.getElementById("url-error"),
 
+    navbar: document.getElementById("navbar"),
+
     focusSettingsButton: document.getElementById("settings-button-focus"),
     pauseSettingsButton: document.getElementById("settings-button-pause"),
     skipFocusButton: document.getElementById("skip-focus-button"),
