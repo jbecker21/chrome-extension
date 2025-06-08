@@ -1,6 +1,18 @@
 import { getStorage, setStorage } from "./storageManager.js";
 import { RULE_ID_START } from "../utils/constants.js";
 
+/**
+ * Renders the list of blocked websites in the UI, creating interactive elements
+ * for each URL that allow it to be removed.
+ *
+ * @param {string[]} urls - An array of domain strings (e.g., "youtube.com") to be displayed.
+ * @param {object} elements - An object containing references to necessary DOM elements,
+ * specifically `elements.websitesList` where the URLs will be rendered.
+ * @param {function(): boolean} isStudyModeCallback - A callback function that returns
+ * `true` if the app is currently in study (focus) mode, `false` otherwise.
+ * @param {function(string[], boolean): void} applyBlockingRulesCallback - A callback function
+ * to apply or remove the actual website blocking rules based on the provided URLs and study mode status.
+ */
 export function renderBlockedWebsites(
   urls,
   elements,
@@ -48,6 +60,14 @@ export function renderBlockedWebsites(
   });
 }
 
+/**
+ * Applies or removes dynamic website blocking rules using the Chrome declarativeNetRequest API.
+ * Rules are only applied when in 'study time' mode.
+ *
+ * @param {string[]} domains - An array of domain strings (e.g., "youtube.com") to block or unblock.
+ * @param {boolean} isStudyTime - A boolean indicating whether the app is currently in study (focus) mode.
+ * If `false`, all existing blocking rules will be removed.
+ */
 export function applyBlockingRules(domains, isStudyTime) {
   const ruleIds = domains.map((_, index) => RULE_ID_START + index);
 
@@ -84,7 +104,7 @@ export function applyBlockingRules(domains, isStudyTime) {
     priority: 1,
     action: { type: "block" },
     condition: {
-      urlFilter: "*://*." + domain + "/*",
+      urlFilter: domain,
       resourceTypes: ["main_frame"],
     },
   }));
@@ -107,6 +127,19 @@ export function applyBlockingRules(domains, isStudyTime) {
   );
 }
 
+/**
+ * Handles the submission of the website blocking form (e.g., when a user types a URL and presses Enter).
+ * It validates the input, cleans the domain, checks for duplicates, adds the new domain to storage,
+ * updates the UI, and applies/reapplies blocking rules.
+ *
+ * @param {Event} e - The submit event object from the form.
+ * @param {object} elements - An object containing references to necessary DOM elements,
+ * including `websiteInput` and `errorBox`.
+ * @param {function(): boolean} isStudyModeCallback - Callback to check if the app is in study mode.
+ * @param {function(string[], object, function, function): void} renderBlockedWebsitesCallback -
+ * Callback to re-render the list of blocked websites in the UI.
+ * @param {function(string[], boolean): void} applyBlockingRulesCallback - Callback to apply/remove blocking rules.
+ */
 export async function handleWebsiteFormSubmit(
   e,
   elements,
@@ -144,15 +177,6 @@ export async function handleWebsiteFormSubmit(
       return;
     }
 
-    // Optional: Überprüfen, ob die Domain erreichbar ist. Kann bei no-cors schwierig sein
-    // try {
-    //   await fetch("https://" + domain, { method: "HEAD", mode: "no-cors" });
-    // } catch (fetchError) {
-    //   // Dies fängt Netzwerkfehler ab, aber nicht unbedingt, wenn die Domain nicht existiert
-    //   // Da declarativeNetRequest auch nicht-existierende Domains blockieren kann, ist dieser Fetch optional
-    //   console.warn("Domain fetch failed, but still attempting to block:", domain, fetchError);
-    // }
-
     const updatedList = [...currentList, domain];
     await setStorage({ blocked_websites: updatedList });
     renderBlockedWebsitesCallback(
@@ -165,7 +189,6 @@ export async function handleWebsiteFormSubmit(
     errorBox.style.visibility = "hidden";
     errorBox.textContent = "";
   } catch (error) {
-    // Dies sollte nur für storage-Fehler oder den optionalen fetch-Fehler auftreten
     console.error("Error adding website:", error);
     errorBox.textContent = "An unexpected error occurred.";
     errorBox.style.visibility = "visible";
@@ -174,6 +197,15 @@ export async function handleWebsiteFormSubmit(
   }
 }
 
+/**
+ * Initializes the blocked websites feature when the popup loads.
+ * It retrieves the stored list of blocked websites and renders them in the UI.
+ * If the app is currently in study mode, it also applies the blocking rules.
+ *
+ * @param {object} elements - DOM elements object.
+ * @param {function(): boolean} isStudyModeCallback - Callback to check if the app is in study mode.
+ * @param {function(string[], boolean): void} applyBlockingRulesCallback - Callback to apply/remove blocking rules.
+ */
 export async function initializeBlockedWebsites(
   elements,
   isStudyModeCallback,
